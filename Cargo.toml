@@ -1,15 +1,7 @@
 [package]
-name = "recode_rs"
-version = "1.0.6"
-authors = ["Henri Sivonen <hsivonen@hsivonen.fi>"]
-description = "Command-line tool for converting between the character encodings defined in the Encoding Standard."
-license = "MIT/Apache-2.0"
-readme = "README.md"
-documentation = "https://github.com/hsivonen/recode_rs"
-homepage = "https://github.com/hsivonen/recode_rs"
-repository = "https://github.com/hsivonen/recode_rs"
-keywords = ["encoding", "charset", "unicode"]
-categories = ["text-processing", "encoding", "command-line-utilities"]
+name = "txtfmt"
+version = "0.1.0"
+authors = ["Henri Sivonen <hsivonen@hsivonen.fi>", "Starz0r <starz0r@starz0r.com>"]
 
 [features]
 simd-accel = ["encoding_rs/simd-accel"]
