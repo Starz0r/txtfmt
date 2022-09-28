@@ -7,43 +7,45 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-extern crate getopts;
 extern crate encoding_rs;
+extern crate getopts;
 
-use getopts::Options;
 use encoding_rs::*;
-use std::io::Write;
-use std::io::Read;
+use getopts::Options;
 use std::fs::File;
+use std::io::Read;
+use std::io::Write;
 use std::path::Path;
 
 fn print_usage(program: &str, opts: Options) {
-    let brief = format!("Usage: {} [-f INPUT_ENCODING] [-t OUTPUT_ENCODING] [-o OUTFILE] [INFILE] \
+    let brief = format!(
+        "Usage: {} [-f INPUT_ENCODING] [-t OUTPUT_ENCODING] [-o OUTFILE] [INFILE] \
                          [...]",
-                        program);
+        program
+    );
     print!("{}", opts.usage(&brief));
 }
 
 fn get_encoding(opt: Option<String>) -> &'static Encoding {
     match opt {
         None => UTF_8,
-        Some(label) => {
-            match Encoding::for_label((&label).as_bytes()) {
-                None => {
-                    print!("{} is not a known encoding label; exiting.", label);
-                    std::process::exit(-2);
-                }
-                Some(encoding) => encoding,
+        Some(label) => match Encoding::for_label((&label).as_bytes()) {
+            None => {
+                print!("{} is not a known encoding label; exiting.", label);
+                std::process::exit(-2);
             }
-        }
+            Some(encoding) => encoding,
+        },
     }
 }
 
-fn convert_via_utf8(decoder: &mut Decoder,
-                    encoder: &mut Encoder,
-                    read: &mut Read,
-                    write: &mut Write,
-                    last: bool) {
+fn convert_via_utf8(
+    decoder: &mut Decoder,
+    encoder: &mut Encoder,
+    read: &mut dyn Read,   // TODO: use impl Read
+    write: &mut dyn Write, // TODO: use impl Write
+    last: bool,
+) {
     let mut input_buffer = [0u8; 2048];
     let mut intermediate_buffer_bytes = [0u8; 4096];
     // Is there a safe way to create a stack-allocated &mut str?
@@ -62,11 +64,11 @@ fn convert_via_utf8(decoder: &mut Decoder,
                 let input_ended = last && current_input_ended;
                 let mut decoder_input_start = 0usize;
                 loop {
-                    let (decoder_result, decoder_read, decoder_written, _) =
-                        decoder
-                            .decode_to_str(&input_buffer[decoder_input_start..decoder_input_end],
-                                           &mut intermediate_buffer,
-                                           input_ended);
+                    let (decoder_result, decoder_read, decoder_written, _) = decoder.decode_to_str(
+                        &input_buffer[decoder_input_start..decoder_input_end],
+                        &mut intermediate_buffer,
+                        input_ended,
+                    );
                     decoder_input_start += decoder_read;
 
                     let last_output = if input_ended {
@@ -94,11 +96,12 @@ fn convert_via_utf8(decoder: &mut Decoder,
                     } else {
                         let mut encoder_input_start = 0usize;
                         loop {
-                            let (encoder_result, encoder_read, encoder_written, _) =
-                                encoder.encode_from_utf8(&intermediate_buffer[encoder_input_start..
-                                                          decoder_written],
-                                                         &mut output_buffer,
-                                                         last_output);
+                            let (encoder_result, encoder_read, encoder_written, _) = encoder
+                                .encode_from_utf8(
+                                    &intermediate_buffer[encoder_input_start..decoder_written],
+                                    &mut output_buffer,
+                                    last_output,
+                                );
                             encoder_input_start += encoder_read;
                             match write.write_all(&output_buffer[..encoder_written]) {
                                 Err(_) => {
@@ -134,11 +137,13 @@ fn convert_via_utf8(decoder: &mut Decoder,
     }
 }
 
-fn convert_via_utf16(decoder: &mut Decoder,
-                     encoder: &mut Encoder,
-                     read: &mut Read,
-                     write: &mut Write,
-                     last: bool) {
+fn convert_via_utf16(
+    decoder: &mut Decoder,
+    encoder: &mut Encoder,
+    read: &mut dyn Read,   // TODO: use impl Read
+    write: &mut dyn Write, // TODO: use impl Write
+    last: bool,
+) {
     let mut input_buffer = [0u8; 2048];
     let mut intermediate_buffer = [0u16; 2048];
     let mut output_buffer = [0u8; 4096];
@@ -154,11 +159,12 @@ fn convert_via_utf16(decoder: &mut Decoder,
                 let input_ended = last && current_input_ended;
                 let mut decoder_input_start = 0usize;
                 loop {
-                    let (decoder_result, decoder_read, decoder_written, _) =
-                        decoder
-                            .decode_to_utf16(&input_buffer[decoder_input_start..decoder_input_end],
-                                             &mut intermediate_buffer,
-                                             input_ended);
+                    let (decoder_result, decoder_read, decoder_written, _) = decoder
+                        .decode_to_utf16(
+                            &input_buffer[decoder_input_start..decoder_input_end],
+                            &mut intermediate_buffer,
+                            input_ended,
+                        );
                     decoder_input_start += decoder_read;
 
                     let last_output = if input_ended {
@@ -176,11 +182,12 @@ fn convert_via_utf16(decoder: &mut Decoder,
 
                     let mut encoder_input_start = 0usize;
                     loop {
-                        let (encoder_result, encoder_read, encoder_written, _) =
-                            encoder.encode_from_utf16(&intermediate_buffer[encoder_input_start..
-                                                       decoder_written],
-                                                      &mut output_buffer,
-                                                      last_output);
+                        let (encoder_result, encoder_read, encoder_written, _) = encoder
+                            .encode_from_utf16(
+                                &intermediate_buffer[encoder_input_start..decoder_written],
+                                &mut output_buffer,
+                                last_output,
+                            );
                         encoder_input_start += encoder_read;
                         match write.write_all(&output_buffer[..encoder_written]) {
                             Err(_) => {
@@ -215,12 +222,14 @@ fn convert_via_utf16(decoder: &mut Decoder,
     }
 }
 
-fn convert(decoder: &mut Decoder,
-           encoder: &mut Encoder,
-           read: &mut Read,
-           write: &mut Write,
-           last: bool,
-           use_utf16: bool) {
+fn convert(
+    decoder: &mut Decoder,
+    encoder: &mut Encoder,
+    read: &mut dyn Read,   // TODO: use impl Read
+    write: &mut dyn Write, // TODO: use impl Write
+    last: bool,
+    use_utf16: bool,
+) {
     if use_utf16 {
         convert_via_utf16(decoder, encoder, read, write, last);
     } else {
@@ -233,21 +242,29 @@ fn main() {
     let program = args.next().unwrap();
 
     let mut opts = Options::new();
-    opts.optopt("o",
-                "output",
-                "set output file name (- for stdout; the default)",
-                "PATH");
-    opts.optopt("f",
-                "from-code",
-                "set input encoding (defaults to UTF-8)",
-                "LABEL");
-    opts.optopt("t",
-                "to-code",
-                "set output encoding (defaults to UTF-8)",
-                "LABEL");
-    opts.optflag("u",
-                 "utf16-intermediate",
-                 "use UTF-16 instead of UTF-8 as the intermediate encoding");
+    opts.optopt(
+        "o",
+        "output",
+        "set output file name (- for stdout; the default)",
+        "PATH",
+    );
+    opts.optopt(
+        "f",
+        "from-code",
+        "set input encoding (defaults to UTF-8)",
+        "LABEL",
+    );
+    opts.optopt(
+        "t",
+        "to-code",
+        "set output encoding (defaults to UTF-8)",
+        "LABEL",
+    );
+    opts.optflag(
+        "u",
+        "utf16-intermediate",
+        "use UTF-16 instead of UTF-8 as the intermediate encoding",
+    );
     opts.optflag("h", "help", "print usage help");
 
     let matches = match opts.parse(args) {
@@ -274,32 +291,32 @@ fn main() {
         None | Some("-") => {
             stdout = std::io::stdout();
             stdout_lock = stdout.lock();
-            &mut stdout_lock as &mut Write
+            &mut stdout_lock as &mut dyn Write
         }
-        Some(path_string) => {
-            match File::create(&Path::new(path_string)) {
-                Ok(f) => {
-                    file = f;
-                    &mut file as &mut Write
-                }
-                Err(_) => {
-                    print!("Cannot open {} for writing; exiting.", path_string);
-                    std::process::exit(-3);
-                }
+        Some(path_string) => match File::create(&Path::new(path_string)) {
+            Ok(f) => {
+                file = f;
+                &mut file as &mut dyn Write
             }
-        }
+            Err(_) => {
+                print!("Cannot open {} for writing; exiting.", path_string);
+                std::process::exit(-3);
+            }
+        },
     };
 
     let mut decoder = input_encoding.new_decoder();
     let mut encoder = output_encoding.new_encoder();
 
     if matches.free.is_empty() {
-        convert(&mut decoder,
-                &mut encoder,
-                &mut std::io::stdin(),
-                output,
-                true,
-                use_utf16);
+        convert(
+            &mut decoder,
+            &mut encoder,
+            &mut std::io::stdin(),
+            output,
+            true,
+            use_utf16,
+        );
     } else {
         let mut iter = matches.free.iter().peekable();
         loop {
@@ -307,34 +324,34 @@ fn main() {
                 None => {
                     break;
                 }
-                Some(path_string) => {
-                    match &path_string[..] {
-                        "-" => {
-                            convert(&mut decoder,
-                                    &mut encoder,
-                                    &mut std::io::stdin(),
-                                    &mut output,
-                                    iter.peek().is_none(),
-                                    use_utf16);
-                        }
-                        _ => {
-                            match File::open(&Path::new(&path_string)) {
-                                Ok(mut file) => {
-                                    convert(&mut decoder,
-                                            &mut encoder,
-                                            &mut file,
-                                            &mut output,
-                                            iter.peek().is_none(),
-                                            use_utf16);
-                                }
-                                Err(_) => {
-                                    print!("Cannot open {} for reading; exiting.", &path_string);
-                                    std::process::exit(-4);
-                                }
-                            }
-                        }
+                Some(path_string) => match &path_string[..] {
+                    "-" => {
+                        convert(
+                            &mut decoder,
+                            &mut encoder,
+                            &mut std::io::stdin(),
+                            &mut output,
+                            iter.peek().is_none(),
+                            use_utf16,
+                        );
                     }
-                }
+                    _ => match File::open(&Path::new(&path_string)) {
+                        Ok(mut file) => {
+                            convert(
+                                &mut decoder,
+                                &mut encoder,
+                                &mut file,
+                                &mut output,
+                                iter.peek().is_none(),
+                                use_utf16,
+                            );
+                        }
+                        Err(_) => {
+                            print!("Cannot open {} for reading; exiting.", &path_string);
+                            std::process::exit(-4);
+                        }
+                    },
+                },
             }
         }
     }
