@@ -1,6 +1,6 @@
 [package]
 name = "txtfmt"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Henri Sivonen <hsivonen@hsivonen.fi>", "Starz0r <starz0r@starz0r.com>"]
 
 [features]
