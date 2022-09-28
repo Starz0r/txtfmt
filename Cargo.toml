@@ -7,7 +7,7 @@ authors = ["Henri Sivonen <hsivonen@hsivonen.fi>", "Starz0r <starz0r@starz0r.com
 simd-accel = ["encoding_rs/simd-accel"]
 
 [dependencies]
-getopts = "0.2.14"
+getopts = "0.2.15"
 
 [dependencies.encoding_rs]
 version = "0.8.11"
